@@ -1,0 +1,27 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Benchmark results
+benchmarks/results/*.json
+benchmarks/results/*.csv
+benchmarks/results/*.png
+!benchmarks/results/.gitkeep
+
+# Test artifacts
+/tmp/
+*.pem
+*.key
+*.crt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
