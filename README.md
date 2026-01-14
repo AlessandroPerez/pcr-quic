@@ -11,25 +11,30 @@ PCR-QUIC implements a double-ratchet mechanism for QUIC providing:
 
 ```
 pcr-quic/
-├── pcr-quic/              # Core PCR-QUIC library (standalone)
-│   ├── src/
-│   │   ├── ratchet.rs     # Symmetric ratchet implementation
-│   │   ├── keys.rs        # Epoch key derivation
-│   │   ├── context.rs     # Epoch management
-│   │   ├── params.rs      # Transport parameters
-│   │   └── frame.rs       # Frame encoding/decoding
-│   └── Cargo.toml
-├── pcr-quic-quiche/       # Quiche integration adapter
-│   ├── src/
-│   │   └── integration.rs
-│   └── Cargo.toml
 ├── benchmarks/            # Performance benchmarks
 │   ├── ftth/              # FTTH network simulation tests
-│   │   ├── setup.sh       # Network namespace setup
-│   │   └── run_tests.sh   # Automated test runner
-│   └── results/           # Benchmark results
-└── README.md
+│   │   ├── setup_network.sh    # Network namespace setup (1 Gbps, 20ms RTT, 0.1% loss)
+│   │   ├── run_tests.sh        # Automated test runner (baseline & PCR-QUIC)
+│   │   ├── compare_results.sh  # Results comparison tool
+│   │   └── results/            # Benchmark results (JSON format)
+│   └── results/           # Aggregated benchmark results
+├── README.md              # This file
+└── .gitignore
+
+External Dependencies:
+├── quiche/                # Cloudflare's QUIC library (sibling directory)
+│   └── quiche/src/pcr/    # PCR-QUIC implementation (integrated)
+│       ├── ratchet.rs     # Per-packet symmetric ratchet (BLAKE3)
+│       ├── keys.rs        # Epoch key derivation (HKDF-SHA256)
+│       ├── context.rs     # Crypto context & epoch management
+│       ├── integration.rs # quiche Connection integration
+│       ├── frame.rs       # PCR_REKEY frame encoding/decoding
+│       ├── params.rs      # Transport parameter negotiation
+│       └── wiring.rs      # Packet protection hooks
 ```
+
+**Note:** PCR-QUIC is currently implemented as a feature flag (`--features pcr-quic`) 
+integrated directly into the quiche library, rather than as a standalone crate.
 
 ## Baseline Performance
 
