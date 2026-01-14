@@ -25,3 +25,5 @@ benchmarks/results/*.png
 # OS
 .DS_Store
 Thumbs.db
+*.o
+target/

@@ -39,24 +39,39 @@ fn main() -> Result<()> {
     iv_send.copy_from_slice(epoch_keys.iv_send.as_bytes());
     let mut send_key = PcrPacketKey::new(epoch_keys.epoch, k_send, iv_send);
     
-    // Step 4: Initialize packet key for receiving (simulate remote peer)
-    // The remote peer uses the recv keys (opposite direction)
-    let mut k_recv = [0u8; 32];
-    k_recv.copy_from_slice(epoch_keys.k_recv.as_bytes());
-    let mut iv_recv = [0u8; 32];
-    iv_recv.copy_from_slice(epoch_keys.iv_recv.as_bytes());
-    let mut recv_key = PcrPacketKey::new(epoch_keys.epoch, k_recv, iv_recv);
-    
-    println!("=== Packet Sealing (Encryption) ===");
-    
     // Connection parameters
     let direction = Direction::ClientToServer; // Client sending to server
     let connection_id = b"test-connection-id";
+    
+    // Initialize the key with direction and CID
+    send_key.init_info_prefix(direction, connection_id);
+    
+    // Step 4: Initialize packet key for receiving (simulate loopback)
+    // IMPORTANT: Even in loopback, sender and receiver need SEPARATE PcrPacketKey instances!
+    // Each tracks its own idx (highest processed packet number). If we reused send_key,
+    // its idx would be 5 after sealing, causing open_packet(pn=1) to fail (1 <= 5).
+    //
+    // In real QUIC:
+    //   - Client uses k_send/iv_send to encrypt, k_recv/iv_recv to decrypt
+    //   - Server uses k_recv/iv_recv to encrypt (=client's send), k_send/iv_send to decrypt
+    //
+    // In this loopback demo:
+    //   - We use SAME keys (k_send) for both, but separate PcrPacketKey instances
+    //   - This simulates testing encryption/decryption with same key material
+    let mut k_recv = [0u8; 32];
+    k_recv.copy_from_slice(epoch_keys.k_send.as_bytes());  // SAME as sender!
+    let mut iv_recv = [0u8; 32];
+    iv_recv.copy_from_slice(epoch_keys.iv_send.as_bytes());  // SAME as sender!
+    let mut recv_key = PcrPacketKey::new(epoch_keys.epoch, k_recv, iv_recv);
+    recv_key.init_info_prefix(direction, connection_id);
+    
+    println!("=== Packet Sealing (Encryption) ===");
+    
     let additional_data = b"quic-header"; // QUIC packet header
     
     // Seal 5 packets in sequence
     let mut sealed_packets = Vec::new();
-    for pn in 0..5 {
+    for pn in 1..=5 {  // PCR-QUIC packet numbers start at 1
         let plaintext = format!("Hello from packet {}", pn);
         let ciphertext = seal_packet(
             &mut send_key,
@@ -79,7 +94,7 @@ fn main() -> Result<()> {
     println!("Opening in-order:");
     for (pn, ciphertext) in sealed_packets.iter().take(3) {
         let plaintext = open_packet(
-            &mut recv_key,
+            &mut recv_key,  // Separate key instance for receiving
             *pn,
             direction,
             connection_id,
@@ -93,11 +108,25 @@ fn main() -> Result<()> {
     }
     println!();
     
-    // Simulate out-of-order delivery: packet 4 arrives before packet 3
-    println!("Opening out-of-order (packet 4 before packet 3):");
-    let (pn4, ciphertext4) = &sealed_packets[4];
+    // Simulate out-of-order delivery: packet 5 arrives before packet 4
+    println!("Opening out-of-order (packet 5 before packet 4):");
+    let (pn5, ciphertext5) = &sealed_packets[4];
+    let plaintext5 = open_packet(
+        &mut recv_key,  // Separate key instance for receiving
+        *pn5,
+        direction,
+        connection_id,
+        additional_data,
+        ciphertext5,
+        512,
+    ).expect(&format!("Failed to open packet {}", pn5));
+    println!("  Packet {}: \"{}\" (✓ authenticated, cached nonce key)", 
+             pn5, String::from_utf8_lossy(&plaintext5));
+    
+    // Now receive the missing packet 4
+    let (pn4, ciphertext4) = &sealed_packets[3];
     let plaintext4 = open_packet(
-        &mut recv_key,
+        &mut recv_key,  // Separate key instance for receiving
         *pn4,
         direction,
         connection_id,
@@ -105,22 +134,8 @@ fn main() -> Result<()> {
         ciphertext4,
         512,
     ).expect(&format!("Failed to open packet {}", pn4));
-    println!("  Packet {}: \"{}\" (✓ authenticated, cached nonce key)", 
-             pn4, String::from_utf8_lossy(&plaintext4));
-    
-    // Now receive the missing packet 3
-    let (pn3, ciphertext3) = &sealed_packets[3];
-    let plaintext3 = open_packet(
-        &mut recv_key,
-        *pn3,
-        direction,
-        connection_id,
-        additional_data,
-        ciphertext3,
-        512,
-    ).expect(&format!("Failed to open packet {}", pn3));
     println!("  Packet {}: \"{}\" (✓ authenticated, used cached nonce key)",
-             pn3, String::from_utf8_lossy(&plaintext3));
+             pn4, String::from_utf8_lossy(&plaintext4));
     println!();
     
     println!("=== Security Properties ===");
