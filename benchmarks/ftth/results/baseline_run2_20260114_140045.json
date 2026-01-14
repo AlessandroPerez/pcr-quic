@@ -1,0 +1,14 @@
+{
+  "test_name": "baseline",
+  "run_number": 2,
+  "timestamp": "2026-01-14T14:00:45+01:00",
+  "duration_seconds": 228,
+  "bytes_transferred": 1073741824,
+  "throughput_mbps": 37.67,
+  "features": "",
+  "network": {
+    "bandwidth": "1 Gbps",
+    "rtt_ms": 20,
+    "packet_loss": "0.1%"
+  }
+}

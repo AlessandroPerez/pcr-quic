@@ -4,27 +4,37 @@
 
 set -e
 
-QUICHE_PATH="${QUICHE_PATH:-/home/ale/Documents/quiche}"
-RESULTS_DIR="$(pwd)/results"
+# Default quiche path: assumes quiche is cloned as sibling directory
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+QUICHE_PATH="${QUICHE_PATH:-$(cd "$REPO_ROOT/../quiche" 2>/dev/null && pwd || echo "")}"
+
+# Validate quiche path
+if [ -z "$QUICHE_PATH" ] || [ ! -d "$QUICHE_PATH" ]; then
+    echo "ERROR: quiche directory not found!"
+    echo "Expected location: $REPO_ROOT/../quiche"
+    echo "Or set QUICHE_PATH environment variable: export QUICHE_PATH=/path/to/quiche"
+    exit 1
+fi
+
+RESULTS_DIR="$SCRIPT_DIR/results"
 TEST_FILE_SIZE="1073741824"  # 1 GB
 NUM_RUNS=3
+ROOT_DIR="$QUICHE_PATH/apps/src/bin/root"
+CERT_PATH="$QUICHE_PATH/apps/src/bin/cert.crt"
+KEY_PATH="$QUICHE_PATH/apps/src/bin/cert.key"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
+# Simple logging without color codes (to avoid bc errors)
 log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+    echo "[INFO] $1"
 }
 
 log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+    echo "[WARN] $1"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo "[ERROR] $1"
 }
 
 # Check if running as root
@@ -38,10 +48,10 @@ mkdir -p "$RESULTS_DIR"
 mkdir -p /tmp/pcr_quic_test
 
 # Create 1GB test file if it doesn't exist
-if [ ! -f "$QUICHE_PATH/apps/src/bin/root/1gb.bin" ]; then
+if [ ! -f "$ROOT_DIR/1gb.bin" ]; then
     log_info "Creating 1GB test file..."
-    mkdir -p "$QUICHE_PATH/apps/src/bin/root"
-    dd if=/dev/zero of="$QUICHE_PATH/apps/src/bin/root/1gb.bin" bs=1M count=1024 2>/dev/null
+    mkdir -p "$ROOT_DIR"
+    dd if=/dev/zero of="$ROOT_DIR/1gb.bin" bs=1M count=1024 2>/dev/null
 fi
 
 # Setup network
@@ -72,9 +82,9 @@ run_test() {
     log_info "Starting server..."
     ip netns exec server "$QUICHE_PATH/target/release/quiche-server" \
         --listen 10.0.0.1:4433 \
-        --cert "$QUICHE_PATH/apps/src/bin/cert.crt" \
-        --key "$QUICHE_PATH/apps/src/bin/cert.key" \
-        --root "$QUICHE_PATH/apps/src/bin/root" \
+        --cert "$CERT_PATH" \
+        --key "$KEY_PATH" \
+        --root "$ROOT_DIR" \
         >/dev/null 2>&1 &
     
     SERVER_PID=$!

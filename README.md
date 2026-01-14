@@ -56,16 +56,65 @@ Network configuration:
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Install dependencies (Debian/Ubuntu)
-sudo apt-get install build-essential cmake pkg-config
+sudo apt-get install build-essential cmake pkg-config libssl-dev jq
 
 # For network namespace tests (Linux only)
 sudo apt-get install iproute2 iptables bc
 ```
 
-### Building
+### Setup Quiche (Required for Benchmarks)
+
+The benchmark scripts require Cloudflare's quiche to be cloned and built:
 
 ```bash
-# Build PCR-QUIC library
+# Create a workspace directory
+mkdir -p ~/pcr-quic-workspace
+cd ~/pcr-quic-workspace
+
+# Clone this repository
+git clone https://github.com/yourusername/pcr-quic.git
+
+# Clone quiche (required dependency) as a sibling directory
+git clone --recursive https://github.com/cloudflare/quiche.git
+
+# Build quiche
+cd quiche
+cargo build --release --bin quiche-server --bin quiche-client
+
+# Create 1GB test file
+mkdir -p apps/src/bin/root
+dd if=/dev/zero of=apps/src/bin/root/1gb.bin bs=1M count=1024
+
+# Verify build
+ls -lh target/release/quiche-{server,client}
+
+# Return to workspace
+cd ..
+```
+
+**Directory Structure:**
+```
+~/pcr-quic-workspace/
+├── pcr-quic/          # This repository
+│   ├── benchmarks/
+│   └── README.md
+└── quiche/            # Cloudflare's quiche (sibling directory)
+    ├── target/release/
+    └── apps/
+```
+
+The benchmark scripts automatically find quiche in the sibling directory. For a custom location, set `QUICHE_PATH`:
+
+```bash
+export QUICHE_PATH=/your/custom/path/to/quiche
+cd ~/pcr-quic-workspace/pcr-quic/benchmarks/ftth
+./run_tests.sh baseline
+```
+
+### Building PCR-QUIC (Future)
+
+```bash
+# Build PCR-QUIC library (TODO: not yet extracted)
 cd pcr-quic
 cargo build --release
 
@@ -79,11 +128,11 @@ cargo build --release
 ```bash
 cd benchmarks/ftth
 
-# Run baseline (stock QUIC)
-./run_tests.sh baseline
+# Run baseline (stock QUIC) - requires quiche to be built first!
+sudo ./run_tests.sh baseline
 
-# Run PCR-QUIC tests
-./run_tests.sh pcr-quic
+# Run PCR-QUIC tests (TODO: after integration)
+sudo ./run_tests.sh pcr-quic
 
 # Compare results
 ./compare_results.sh
@@ -91,42 +140,68 @@ cd benchmarks/ftth
 
 ## Reproducing Results
 
-### 1. Baseline Stock QUIC Test
+### Automated Testing (Recommended)
+
+The easiest way to reproduce results:
 
 ```bash
-# Setup simulated FTTH network (requires root)
+# 1. Setup quiche (one-time setup - see Prerequisites above)
+cd /home/ale/Documents
+git clone --recursive https://github.com/cloudflare/quiche.git
+cd quiche
+cargo build --release --bin quiche-server --bin quiche-client
+mkdir -p apps/src/bin/root
+dd if=/dev/zero of=apps/src/bin/root/1gb.bin bs=1M count=1024
+
+# 2. Run automated baseline tests (runs 3 iterations, calculates average)
+cd /home/ale/Documents/pcr-quic/benchmarks/ftth
+sudo ./run_tests.sh baseline
+
+# 3. View results
+./compare_results.sh
+```
+
+Expected result: ~37 Mbps average throughput for 1GB transfers
+
+### Manual Testing
+
+If you prefer to run tests manually:
+
+```bash
+# 1. Setup simulated FTTH network (requires root)
 cd benchmarks/ftth
 sudo ./setup_network.sh
 
-# Run stock quiche server/client
-cd /path/to/quiche
-cargo build --release --bin quiche-server --bin quiche-client
-
-# In one terminal (server namespace)
+# 2. In one terminal (server namespace)
+cd /home/ale/Documents/quiche
 sudo ip netns exec server ./target/release/quiche-server \
   --listen 10.0.0.1:4433 \
   --cert apps/src/bin/cert.crt \
   --key apps/src/bin/cert.key \
   --root apps/src/bin/root
 
-# In another terminal (client namespace)
+# 3. In another terminal (client namespace)
 sudo ip netns exec client ./target/release/quiche-client \
   --no-verify \
   https://10.0.0.1:4433/1gb.bin \
   --dump-responses /tmp/results
+
+# 4. Calculate throughput
+# Time the transfer and divide: (1GB * 8) / seconds = Mbps
 ```
 
-Expected result: ~37 Mbps throughput for 1GB transfer
+### PCR-QUIC Test (TODO)
 
-### 2. PCR-QUIC Test
+Once PCR-QUIC is integrated into quiche:
 
 ```bash
 # Build quiche with PCR-QUIC feature
-cd /path/to/quiche
+cd /home/ale/Documents/quiche
 cargo build --release --features pcr-quic --bin quiche-server --bin quiche-client
 
-# Run with same network setup
-# (same commands as above)
+# Run automated tests
+cd /home/ale/Documents/pcr-quic/benchmarks/ftth
+sudo ./run_tests.sh pcr-quic
 ```
 
 ## Architecture
@@ -191,7 +266,7 @@ If you use PCR-QUIC in academic work, please cite:
 ```bibtex
 @inproceedings{pcr-quic-2026,
   title={PCR-QUIC: Per-Packet Cryptographic Ratcheting for QUIC},
-  author={Your Name},
+  author={Alessandro Perez},
   year={2026}
 }
 ```
