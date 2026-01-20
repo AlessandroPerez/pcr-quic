@@ -15,7 +15,7 @@ ring = "0.17"
 blake3 = "1.5"
 
 # QUIC utilities (for varint encoding) - use local path to match quiche
-octets = { path = "../pcr-quiche/octets", version = "0.3" }
+octets = { path = "../quiche/octets", version = "0.3" }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"], optional = true }

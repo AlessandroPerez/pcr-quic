@@ -153,6 +153,55 @@ test_integration() {
 # ============================================================================
 # Test 3: Network Benchmark
 # ============================================================================
+setup_network_simulation() {
+    echo -e "${YELLOW}Setting up network simulation...${NC}"
+    
+    # Cleanup existing namespaces
+    sudo ip netns del server 2>/dev/null || true
+    sudo ip netns del client 2>/dev/null || true
+    
+    # Create namespaces
+    sudo ip netns add server
+    sudo ip netns add client
+    
+    # Create veth pair
+    sudo ip link add veth-server type veth peer name veth-client
+    
+    # Move interfaces to namespaces
+    sudo ip link set veth-server netns server
+    sudo ip link set veth-client netns client
+    
+    # Configure server namespace
+    sudo ip netns exec server ip addr add 10.0.0.1/24 dev veth-server
+    sudo ip netns exec server ip link set veth-server up
+    sudo ip netns exec server ip link set lo up
+    
+    # Configure client namespace
+    sudo ip netns exec client ip addr add 10.0.0.2/24 dev veth-client
+    sudo ip netns exec client ip link set veth-client up
+    sudo ip netns exec client ip link set lo up
+    
+    # Apply traffic control for realistic network simulation
+    # Server side: 1 Gbps bandwidth, 10ms delay (half RTT), 0.05% loss
+    sudo ip netns exec server tc qdisc add dev veth-server root netem \
+        rate 1000mbit delay 10ms loss 0.05%
+    
+    # Client side: 1 Gbps bandwidth, 10ms delay (half RTT), 0.05% loss
+    sudo ip netns exec client tc qdisc add dev veth-client root netem \
+        rate 1000mbit delay 10ms loss 0.05%
+    
+    echo -e "${GREEN}✓ Network simulation configured:${NC}"
+    echo "  - Bandwidth: 1 Gbps"
+    echo "  - RTT: 20ms (10ms each direction)"
+    echo "  - Packet loss: 0.1% (0.05% each direction)"
+    echo
+}
+
+cleanup_network_simulation() {
+    sudo ip netns del server 2>/dev/null || true
+    sudo ip netns del client 2>/dev/null || true
+}
+
 test_benchmark() {
     echo -e "${BLUE}========================================${NC}"
     echo -e "${BLUE}Test 3: 1GB Download Benchmark${NC}"
@@ -172,16 +221,8 @@ test_benchmark() {
         dd if=/dev/urandom of="$TEST_FILE" bs=1M count=1024 status=progress
     fi
 
-    # Check if network namespaces are set up
-    if ! sudo ip netns list 2>/dev/null | grep -q "server"; then
-        echo -e "${YELLOW}Setting up network namespaces...${NC}"
-        if [ -f "$QUICHE_VANILLA/quiche/examples/setup_netns_ftth_combined.sh" ]; then
-            sudo "$QUICHE_VANILLA/quiche/examples/setup_netns_ftth_combined.sh"
-        else
-            echo -e "${RED}❌ Network setup script not found${NC}"
-            return 1
-        fi
-    fi
+    # Setup network simulation
+    setup_network_simulation
 
     mkdir -p "$RESULTS_DIR"
     
@@ -248,6 +289,9 @@ test_benchmark() {
     
     run_test "pcr" "$PCR_SERVER" "$PCR_CLIENT"
     
+    # Cleanup network simulation
+    cleanup_network_simulation
+    
     # Summary
     echo -e "${GREEN}========================================${NC}"
     echo -e "${GREEN}BENCHMARK RESULTS${NC}"
@@ -263,6 +307,8 @@ test_benchmark() {
         echo "Vanilla QUIC: ${vanilla_time}s (${vanilla_mbps} Mbps)"
         echo "PCR-QUIC:     ${pcr_time}s (${pcr_mbps} Mbps)"
         echo "Overhead:     ${overhead}%"
+        echo
+        echo "Network simulation: 1 Gbps, 20ms RTT, 0.1% loss"
     fi
     echo
 }
