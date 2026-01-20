@@ -65,6 +65,9 @@ git clone https://github.com/cloudflare/quiche.git
 cd quiche
 git checkout 70466076  # Tested commit
 
+# Initialize BoringSSL submodule (REQUIRED)
+git submodule update --init --recursive
+
 # Apply PCR integration patch
 cd /home/ale/Documents
 cp -r quiche pcr-quic/quiche
@@ -83,7 +86,7 @@ patch -p0 < pcr-quiche/quiche-pcr-integration.patch
 cd /home/ale/Documents/quiche
 
 # Build vanilla QUIC binaries (NO PCR)
-cargo build --release -p quiche_apps \
+QUICHE_PATH=/home/ale/Documents/quiche cargo build --release -p quiche_apps \
     --bin quiche-server \
     --bin quiche-client
 
