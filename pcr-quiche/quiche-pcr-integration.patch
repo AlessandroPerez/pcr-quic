@@ -1,5 +1,5 @@
---- quiche/quiche/Cargo.toml	2026-01-20 23:01:31.289721095 +0100
-+++ pcr-quic/pcr-quiche/quiche/Cargo.toml	2026-01-20 23:05:02.519644432 +0100
+--- quiche/quiche/Cargo.toml	2026-01-20 23:48:01.498135473 +0100
++++ pcr-quic/quiche/quiche/Cargo.toml	2026-01-20 23:49:10.664868662 +0100
 @@ -1,15 +1,16 @@
  [package]
  name = "quiche"
@@ -78,8 +78,8 @@
  
  [target."cfg(windows)".dependencies]
  windows-sys = { version = "0.59", features = [
---- quiche/quiche/Cargo.toml	2026-01-20 23:01:31.289721095 +0100
-+++ pcr-quic/pcr-quiche/quiche/Cargo.toml	2026-01-20 23:05:02.519644432 +0100
+--- quiche/quiche/Cargo.toml	2026-01-20 23:48:01.498135473 +0100
++++ pcr-quic/quiche/quiche/Cargo.toml	2026-01-20 23:49:10.664868662 +0100
 @@ -1,15 +1,16 @@
  [package]
  name = "quiche"
@@ -158,8 +158,8 @@
  
  [target."cfg(windows)".dependencies]
  windows-sys = { version = "0.59", features = [
---- quiche/quiche/src/lib.rs	2026-01-20 23:01:31.294720975 +0100
-+++ pcr-quic/pcr-quiche/quiche/src/lib.rs	2026-01-20 23:16:42.135927940 +0100
+--- quiche/quiche/src/lib.rs	2026-01-20 23:48:01.500715247 +0100
++++ pcr-quic/quiche/quiche/src/lib.rs	2026-01-20 23:49:10.666868614 +0100
 @@ -446,8 +446,15 @@
  /// The default initial RTT.
  const DEFAULT_INITIAL_RTT: Duration = Duration::from_millis(333);
