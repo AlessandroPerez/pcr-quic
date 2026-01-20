@@ -3,6 +3,10 @@
 **/*.rs.bk
 Cargo.lock
 
+# PCR-integrated quiche (large copy, can be regenerated)
+/pcr-quiche/
+/pcr-quic-crate/target/
+
 # Benchmark results
 benchmarks/results/*.json
 benchmarks/results/*.csv

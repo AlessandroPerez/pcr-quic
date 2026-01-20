@@ -1,1 +1,0 @@
-rd_("hpcr_quic")

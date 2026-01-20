@@ -1,0 +1,35 @@
+[package]
+name = "pcr-quic"
+version = "0.1.0"
+authors = ["Alessandro <your-email@example.com>"]
+edition = "2021"
+license = "BSD-2-Clause"
+description = "PCR-QUIC: Double Ratchet Protocol for QUIC with Forward Secrecy and Post-Compromise Security"
+repository = "https://github.com/AlessandroPerez/pcr-quic"
+keywords = ["quic", "cryptography", "pqc", "forward-secrecy", "post-quantum"]
+categories = ["cryptography", "network-programming"]
+
+[dependencies]
+# Cryptographic primitives
+ring = "0.17"
+blake3 = "1.5"
+
+# QUIC utilities (for varint encoding) - use local path to match quiche
+octets = { path = "../pcr-quiche/octets", version = "0.3" }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"], optional = true }
+
+[build-dependencies]
+cc = "1.0"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[features]
+default = []
+serde = ["dep:serde"]
+
+[lib]
+name = "pcr_quic"
+path = "src/lib.rs"

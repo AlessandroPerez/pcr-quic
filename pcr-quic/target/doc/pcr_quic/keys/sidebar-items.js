@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Direction"],"fn":["derive_direction_keys","derive_epoch_keys","derive_prks"],"struct":["EpochKeys"],"type":["Epoch"]};

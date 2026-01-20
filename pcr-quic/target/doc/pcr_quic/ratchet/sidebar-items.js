@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["DEFAULT_SKIP_WINDOW"],"fn":["compute_nonce","open_packet","seal_packet","seal_packet_with_nk"],"struct":["PcrPacketKey"]};
