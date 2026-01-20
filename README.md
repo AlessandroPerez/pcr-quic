@@ -12,7 +12,7 @@ PCR-QUIC adds post-quantum forward secrecy to QUIC by using:
 
 ## Features
 
-✅ **Successfully Extracted**: 3,924 lines of PCR-QUIC code  
+✅ **Successfully Extracted**: 3,632 lines of PCR-QUIC code  
 ✅ **Compiles Cleanly**: All imports and dependencies resolved  
 ✅ **QUIC Integration**: Can build functioning quiche-server/client with `--features pcr-quic`  
 ✅ **Documentation**: Full API docs with `cargo doc`
@@ -21,21 +21,26 @@ PCR-QUIC adds post-quantum forward secrecy to QUIC by using:
 
 ```
 pcr-quic/
-├── Cargo.toml           # Crate definition
-├── README.md            # This file
-├── src/
-│   ├── lib.rs           # Main crate entry point
-│   ├── keys.rs          # Epoch key derivation (390 LOC)
-│   ├── ratchet.rs       # Per-packet symmetric ratchet (927 LOC)
-│   ├── context.rs       # PCR crypto context management (1086 LOC)
-│   ├── params.rs        # QUIC transport parameters (319 LOC)
-│   ├── frame.rs         # PCR_REKEY frame encoding (419 LOC)
-│   └── pcr_shim/        # BoringSSL FFI bindings
-│       ├── mod.rs       # Rust FFI declarations (783 LOC)
-│       └── (C code in quiche/quiche/src/crypto/pcr_shim/)
-└── examples/
-    ├── Cargo.toml
-    └── basic_ratchet.rs # Example (requires C shim compilation)
+├── pcr-quic/            # Main crate
+│   ├── Cargo.toml       # Crate definition
+│   ├── build.rs         # Builds C FFI shim
+│   └── src/
+│       ├── lib.rs       # Main crate entry point (109 LOC)
+│       ├── keys.rs      # Epoch key derivation (389 LOC)
+│       ├── ratchet.rs   # Per-packet symmetric ratchet (926 LOC)
+│       ├── context.rs   # PCR crypto context (565 LOC)
+│       ├── params.rs    # QUIC transport parameters (277 LOC)
+│       ├── frame.rs     # PCR_REKEY frame encoding (223 LOC)
+│       └── pcr_shim/    # BoringSSL FFI bindings
+│           ├── mod.rs   # Rust FFI declarations (974 LOC)
+│           ├── crypto_shim.c  # C implementation (589 LOC)
+│           └── crypto_shim.h  # C header
+├── examples/            # Usage examples
+│   ├── Cargo.toml
+│   └── basic_ratchet.rs
+├── test.sh              # Standalone crypto test
+├── test_integration.sh  # Full client/server test
+└── README.md            # This file
 ```
 
 ## Dependencies
@@ -110,7 +115,7 @@ cargo build --release --features pcr-quic \\
 # target/release/quiche-client (75MB)
 ```
 
-**Status**: ✅ **Successfully built** (as of Jan 14, 2025)
+**Status**: ✅ **Successfully built** (as of Jan 20, 2026)
 
 The build process:
 1. Compiles the `pcr-quic` Rust crate
@@ -119,23 +124,23 @@ The build process:
 
 ## Limitations
 
-### C FFI Dependency
+### C FFI Implementation
 
-The standalone crate **requires C FFI** functions from BoringSSL:
+The crate includes a C FFI shim (`crypto_shim.c`, 589 LOC) that wraps BoringSSL:
 - `pcr_hkdf_sha256`: HKDF-SHA256 key derivation
 - `pcr_aes256gcm_seal/open`: AES-256-GCM encryption
 - `pcr_aes256gcm_ctx_new/free`: Cached AES contexts
 - `pcr_secure_zero`: Secure memory zeroization
 
-**Standalone examples** (e.g., `basic_ratchet.rs`) **cannot run** without:
-1. A `build.rs` script to compile `crypto_shim.c`
-2. Linking against BoringSSL
-3. Proper include paths
+**Build requirements**:
+1. `build.rs` compiles `crypto_shim.c` automatically
+2. Requires `QUICHE_PATH` env var pointing to quiche repo (for BoringSSL)
+3. Links against BoringSSL's libcrypto
 
-**However**, the crate **successfully integrates with quiche**, which provides:
-- The C FFI shim compilation via quiche's build.rs
-- BoringSSL linkage
-- Complete QUIC protocol implementation
+**Integration with quiche**:
+- Works seamlessly with `cargo build --features pcr-quic`
+- Shares BoringSSL build from quiche
+- Provides complete QUIC+PCR protocol
 
 ## Integration Architecture
 
@@ -151,13 +156,13 @@ The standalone crate **requires C FFI** functions from BoringSSL:
                │    └─→ TLS integration
                │
                └──→ pcr-quic crate (THIS CRATE)
-                    ├─→ Epoch key derivation
-                    ├─→ Per-packet ratchet
-                    ├─→ PCR_REKEY frame encoding
-                    └─→ pcr_shim FFI
-                         │
-                         └──→ crypto_shim.c (C code)
-                              └──→ BoringSSL
+                    ├─→ Epoch key derivation (keys.rs)
+                    ├─→ Per-packet ratchet (ratchet.rs)
+                    ├─→ PCR_REKEY frame encoding (frame.rs)
+                    └─→ pcr_shim/ (FFI + C implementation)
+                         ├─→ mod.rs (Rust FFI)
+                         ├─→ crypto_shim.c (C wrapper)
+                         └─→ BoringSSL (from quiche)
 ```
 
 ## Security Properties
@@ -172,32 +177,49 @@ The standalone crate **requires C FFI** functions from BoringSSL:
 
 ### Running Benchmarks
 
-The crate provides three ways to benchmark PCR-QUIC:
+The crate provides multiple ways to test and benchmark PCR-QUIC:
 
-#### 1. Standalone Crypto Benchmarks (Fastest)
+#### 1. Standalone Crypto Test (Quick)
 
-Test the crypto primitives in isolation without full QUIC protocol:
+Validates the crypto primitives work without full QUIC protocol:
 
 ```bash
 cd pcr-quic
 QUICHE_PATH=/path/to/quiche ./test.sh
 ```
 
-This validates:
-- Basic ratchet compilation and execution
-- Per-packet nonce derivation works
-- AES-256-GCM encryption/decryption
+This runs the `basic_ratchet` example which tests:
+- Per-packet nonce derivation
+- AES-256-GCM encryption/decryption  
+- 5 packets encrypted and decrypted successfully
 
-#### 2. Full Network Benchmarks (Recommended)
+#### 2. Full Integration Test (Client/Server)
+
+Tests PCR-QUIC in actual quiche client and server:
+
+```bash
+cd pcr-quic
+./test_integration.sh
+```
+
+This script:
+- Checks that quiche binaries are built with `--features pcr-quic`
+- Starts quiche-server on localhost:4433
+- Connects with quiche-client and fetches a test file
+- Verifies end-to-end PCR-QUIC encryption works
+
+**Prerequisites**: Build quiche with PCR support first:
+```bash
+cd ../quiche
+cargo build --release --features pcr-quic --bin quiche-server --bin quiche-client
+```
+
+#### 3. Full Network Benchmarks (Production-Ready)
 
 Compare vanilla QUIC vs PCR-QUIC with real network conditions:
 
 ```bash
 cd ../quiche
-
-# Build both variants
-cargo build --release --bin quiche-server --bin quiche-client                    # Vanilla
-cargo build --release --bin quiche-server --bin quiche-client --features pcr-quic  # PCR-QUIC
 
 # Run comprehensive benchmark suite
 ./run_benchmarks.sh
@@ -211,7 +233,7 @@ This runs:
 
 Results saved to `benchmark_results/` with statistical analysis.
 
-#### 3. Quick Performance Check
+### Quick Manual Test
 
 ```bash
 cd ../quiche
@@ -250,34 +272,20 @@ Tests simulate real-world conditions:
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Crate compilation | ✅ | Compiles with 6 warnings (unused functions) |
+| Crate compilation | ✅ | Compiles cleanly |
 | Documentation | ✅ | `cargo doc` successful |
-| Quiche integration | ✅ | Binaries built successfully |
-| Standalone example | ⚠️ | Requires C shim build.rs |
-| Unit tests | ✅ | Existing quiche tests |
-
-## Testing
-
-To verify PCR-QUIC works:
-
-```bash
-# Terminal 1: Start server
-cd quiche
-openssl req -x509 -newkey rsa:2048 -keyout /tmp/key.pem \\
-    -out /tmp/cert.pem -days 365 -nodes -subj "/CN=localhost"
-target/release/quiche-server --listen 127.0.0.1:4433 \\
-    --cert /tmp/cert.pem --key /tmp/key.pem
-
-# Terminal 2: Run client
-target/release/quiche-client --no-verify https://127.0.0.1:4433/
-```
+| Quiche integration | ✅ | Works with `--features pcr-quic` |
+| Standalone test | ✅ | `./test.sh` validates crypto |
+| Integration test | ✅ | `./test_integration.sh` validates client/server |
+| Network benchmarks | ✅ | `./run_benchmarks.sh` in quiche |
 
 ## Next Steps
 
-1. **Add build.rs**: Compile crypto_shim.c for standalone usage
-2. **Benchmark PCR-QUIC**: Compare with vanilla baseline (37.942 Mbps)
-3. **Network tests**: Verify 0.1% loss handling, out-of-order delivery
-4. **Documentation**: Add integration guide for other QUIC implementations
+- ✅ **Standalone crate**: Extracted and working
+- ✅ **Quiche integration**: Compiles with `--features pcr-quic`
+- ✅ **Testing scripts**: `test.sh` and `test_integration.sh` ready
+- 🔄 **Benchmarking**: Run `./run_benchmarks.sh` to compare vanilla vs PCR-QUIC
+- 📊 **Analysis**: Document performance results
 
 ## License
 

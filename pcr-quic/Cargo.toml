@@ -5,7 +5,7 @@ authors = ["Alessandro <your-email@example.com>"]
 edition = "2021"
 license = "BSD-2-Clause"
 description = "PCR-QUIC: Double Ratchet Protocol for QUIC with Forward Secrecy and Post-Compromise Security"
-repository = "https://github.com/yourusername/pcr-quic"
+repository = "https://github.com/AlessandroPerez/pcr-quic"
 keywords = ["quic", "cryptography", "pqc", "forward-secrecy", "post-quantum"]
 categories = ["cryptography", "network-programming"]
 
