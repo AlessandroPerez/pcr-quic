@@ -3,8 +3,9 @@
 **/*.rs.bk
 Cargo.lock
 
-# PCR-integrated quiche (large copy, can be regenerated)
-/pcr-quiche/
+# PCR-integrated quiche (regenerated from upstream + patch)
+# See pcr-quiche/quiche-pcr-integration.patch for modifications
+/quiche/
 /pcr-quic-crate/target/
 
 # Benchmark results

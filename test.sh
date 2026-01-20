@@ -10,7 +10,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 QUICHE_VANILLA="${QUICHE_PATH:-/home/ale/Documents/quiche}"
-QUICHE_PCR="$SCRIPT_DIR/pcr-quiche"
+QUICHE_PCR="$SCRIPT_DIR/quiche"
 
 # Suppress warnings during compilation
 export RUSTFLAGS="-A warnings"
@@ -67,7 +67,7 @@ test_standalone() {
     echo
 
     if [ ! -d "$QUICHE_PCR" ]; then
-        echo -e "${RED}❌ Error: pcr-quiche not found at $QUICHE_PCR${NC}"
+        echo -e "${RED}❌ Error: quiche not found at $QUICHE_PCR${NC}"
         echo "This should be the PCR-integrated quiche in the pcr-quic repo"
         return 1
     fi

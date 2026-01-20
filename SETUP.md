@@ -53,21 +53,27 @@ cd pcr-quic
 # Verify structure
 ls -la
 # Expected output:
-# pcr-quic-crate/  pcr-quiche/  test.sh  README.md  SETUP.md
+# pcr-quic-crate/  quiche/  pcr-quiche/  test.sh  README.md  SETUP.md
 ```
 
-### Step 2: Verify Dependencies
+### Step 2: Clone and Prepare Vanilla Quiche
 
 ```bash
-# Check that upstream quiche exists (needed for vanilla baseline)
-ls /home/ale/Documents/quiche
-# Should show: Cargo.toml, quiche/, apps/, etc.
-
-# If quiche is not present, clone it:
+# Clone upstream Cloudflare quiche
 cd /home/ale/Documents
 git clone https://github.com/cloudflare/quiche.git
 cd quiche
-git checkout main  # Or specific version
+git checkout 70466076  # Tested commit
+
+# Apply PCR integration patch
+cd /home/ale/Documents
+cp -r quiche pcr-quic/quiche
+cd pcr-quic
+patch -p0 < pcr-quiche/quiche-pcr-integration.patch
+
+# This applies:
+# - Cargo.toml: Adds pcr-quic feature flags
+# - quiche/src/lib.rs: Adds encryption/decryption hooks
 ```
 
 ### Step 3: Build Vanilla QUIC (Baseline)
@@ -94,13 +100,10 @@ ls -lh target/release/quiche-server target/release/quiche-client
 ### Step 4: Build PCR-QUIC
 
 ```bash
-# Navigate to PCR-QUIC repository
-cd /home/ale/Documents/pcr-quic
+# Navigate to patched quiche directory
+cd /home/ale/Documents/pcr-quic/quiche
 
-# Build pcr-quiche with PCR feature enabled
-cd pcr-quiche
-
-# Set path to upstream quiche (needed for BoringSSL)
+# Set path to upstream quiche (for BoringSSL)
 export QUICHE_PATH=/home/ale/Documents/quiche
 
 # Build PCR-enabled binaries
@@ -314,7 +317,7 @@ eprintln!("PCR ENCRYPT: pn={}, epoch={}", pn, key.epoch);
 eprintln!("PCR DECRYPT: pn={}, epoch={}", pn, key.epoch);
 
 # Rebuild
-cd pcr-quiche
+cd quiche
 cargo build --release --features quiche/pcr-quic
 
 # Run with logging
@@ -349,8 +352,8 @@ export QUICHE_PATH=/home/ale/Documents/quiche
 cd /home/ale/Documents/quiche
 cargo build --release
 
-# Then build pcr-quiche
-cd /home/ale/Documents/pcr-quic/pcr-quiche
+# Then build PCR-QUIC
+cd /home/ale/Documents/pcr-quic/quiche
 cargo build --release --features quiche/pcr-quic
 ```
 
@@ -366,11 +369,11 @@ Overhead:     0%  ← Wrong!
 **Cause:** PCR code path is not executing despite feature flag.
 
 **Solution:**
-Verify integration hooks exist in `pcr-quiche/quiche/src/lib.rs`:
+Verify integration hooks exist in `quiche/quiche/src/lib.rs`:
 
 ```bash
 # Check encryption hook exists
-grep -A 5 "if self.pcr_is_active()" pcr-quiche/quiche/src/lib.rs | head -20
+grep -A 5 "if self.pcr_is_active()" quiche/quiche/src/lib.rs | head -20
 
 # Should show:
 # #[cfg(feature = "pcr-quic")]
@@ -452,7 +455,7 @@ const DEFAULT_EPOCH_INTERVAL: Duration = Duration::from_secs(120);
 const DEFAULT_EPOCH_INTERVAL: Duration = Duration::from_secs(60);  # 1 minute
 
 # Rebuild
-cd pcr-quiche
+cd quiche
 cargo clean
 cargo build --release --features quiche/pcr-quic
 ```
@@ -470,7 +473,7 @@ let elapsed = start.elapsed();
 eprintln!("BLAKE3 derivation: {:?}", elapsed);
 
 # Rebuild and run
-cd pcr-quiche
+cd quiche
 cargo build --release --features quiche/pcr-quic
 cd ..
 ./test.sh --integration 2>&1 | grep "BLAKE3 derivation" | head -10
@@ -490,7 +493,7 @@ To exactly reproduce the results in the thesis:
 cd /home/ale/Documents/quiche
 cargo build --release -p quiche_apps
 
-cd /home/ale/Documents/pcr-quic/pcr-quiche
+cd /home/ale/Documents/pcr-quic/quiche
 export QUICHE_PATH=/home/ale/Documents/quiche
 cargo build --release -p quiche_apps --features quiche/pcr-quic
 
@@ -527,7 +530,7 @@ EOF
 
 ```bash
 # Remove build artifacts
-cd /home/ale/Documents/pcr-quic/pcr-quiche
+cd /home/ale/Documents/pcr-quic/quiche
 cargo clean
 
 cd /home/ale/Documents/quiche
@@ -564,4 +567,4 @@ If you encounter issues not covered in this guide:
 4. Check debug logs with `eprintln!()` statements
 5. Compare your output with expected output in this guide
 
-For the most common issue (0% overhead), verify the integration hooks exist in `pcr-quiche/quiche/src/lib.rs` as shown in the debugging section.
+For the most common issue (0% overhead), verify the integration hooks exist in `quiche/quiche/src/lib.rs` as shown in the debugging section.
