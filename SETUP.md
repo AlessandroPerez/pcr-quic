@@ -53,40 +53,40 @@ cd pcr-quic
 # Verify structure
 ls -la
 # Expected output:
-# pcr-quic-crate/  quiche/  pcr-quiche/  test.sh  README.md  SETUP.md
+# pcr-quic-crate/  pcr-quiche/  pcr-quiche-patch/  quiche@  test.sh  README.md  SETUP.md
+# (quiche@ is a symlink to /home/ale/Documents/quiche)
 ```
 
-### Step 2: Clone and Prepare Vanilla Quiche
+### Step 2: Directory Structure Overview
+
+The repository contains:
+- `pcr-quic-crate/` - Core PCR cryptographic library
+- `pcr-quiche-patch/` - Patch files for upstream quiche
+- `pcr-quiche/` - Patched quiche with PCR integration
+- `quiche/` - Symlink to vanilla quiche at `/home/ale/Documents/quiche`
 
 ```bash
-# Clone upstream Cloudflare quiche
+# If vanilla quiche doesn't exist, clone it:
 cd /home/ale/Documents
-git clone https://github.com/cloudflare/quiche.git
-cd quiche
-git checkout 70466076  # Tested commit
+if [ ! -d "quiche" ]; then
+    git clone https://github.com/cloudflare/quiche.git
+    cd pcr-quiche
+    git checkout 70466076  # Tested commit
+    git submodule update --init --recursive
+fi
 
-# Initialize BoringSSL submodule (REQUIRED)
-git submodule update --init --recursive
-
-# Apply PCR integration patch
-cd /home/ale/Documents
-cp -r quiche pcr-quic/quiche
-cd pcr-quic
-patch -p0 < pcr-quiche/quiche-pcr-integration.patch
-
-# This applies:
-# - Cargo.toml: Adds pcr-quic feature flags
-# - quiche/src/lib.rs: Adds encryption/decryption hooks
+# The pcr-quiche directory already contains the integrated version
+# No patching needed - it's ready to build
 ```
 
 ### Step 3: Build Vanilla QUIC (Baseline)
 
 ```bash
-# Navigate to upstream quiche
+# Navigate to vanilla quiche (symlinked from pcr-quic/quiche)
 cd /home/ale/Documents/quiche
 
 # Build vanilla QUIC binaries (NO PCR)
-QUICHE_PATH=/home/ale/Documents/quiche cargo build --release -p quiche_apps \
+cargo build --release -p quiche_apps \
     --bin quiche-server \
     --bin quiche-client
 
@@ -103,15 +103,12 @@ ls -lh target/release/quiche-server target/release/quiche-client
 ### Step 4: Build PCR-QUIC
 
 ```bash
-# Navigate to patched quiche directory
-cd /home/ale/Documents/pcr-quic/quiche
-
-# Set path to upstream quiche (for BoringSSL)
-export QUICHE_PATH=/home/ale/Documents/quiche
+# Navigate to PCR-integrated quiche directory
+cd /home/ale/Documents/pcr-quic/pcr-quiche
 
 # Build PCR-enabled binaries
 cargo build --release -p quiche_apps \
-    --features quiche/pcr-quic \
+    --features pcr-quic \
     --bin quiche-server \
     --bin quiche-client
 
@@ -320,8 +317,8 @@ eprintln!("PCR ENCRYPT: pn={}, epoch={}", pn, key.epoch);
 eprintln!("PCR DECRYPT: pn={}, epoch={}", pn, key.epoch);
 
 # Rebuild
-cd quiche
-cargo build --release --features quiche/pcr-quic
+cd pcr-quiche
+cargo build --release --features pcr-quic
 
 # Run with logging
 cd ..
@@ -356,8 +353,8 @@ cd /home/ale/Documents/quiche
 cargo build --release
 
 # Then build PCR-QUIC
-cd /home/ale/Documents/pcr-quic/quiche
-cargo build --release --features quiche/pcr-quic
+cd /home/ale/Documents/pcr-quic/pcr-quiche
+cargo build --release --features pcr-quic
 ```
 
 #### Issue 2: Benchmark Shows 0% Overhead
@@ -421,7 +418,7 @@ cat .cargo/config.toml
 
 # Or set manually
 export RUSTFLAGS="-A warnings"
-cargo build --release --features quiche/pcr-quic
+cargo build --release --features pcr-quic
 ```
 
 ## Advanced Usage
@@ -458,9 +455,9 @@ const DEFAULT_EPOCH_INTERVAL: Duration = Duration::from_secs(120);
 const DEFAULT_EPOCH_INTERVAL: Duration = Duration::from_secs(60);  # 1 minute
 
 # Rebuild
-cd quiche
+cd pcr-quiche
 cargo clean
-cargo build --release --features quiche/pcr-quic
+cargo build --release --features pcr-quic
 ```
 
 ### Measure Per-Packet Latency
@@ -476,8 +473,8 @@ let elapsed = start.elapsed();
 eprintln!("BLAKE3 derivation: {:?}", elapsed);
 
 # Rebuild and run
-cd quiche
-cargo build --release --features quiche/pcr-quic
+cd pcr-quiche
+cargo build --release --features pcr-quic
 cd ..
 ./test.sh --integration 2>&1 | grep "BLAKE3 derivation" | head -10
 
@@ -496,9 +493,8 @@ To exactly reproduce the results in the thesis:
 cd /home/ale/Documents/quiche
 cargo build --release -p quiche_apps
 
-cd /home/ale/Documents/pcr-quic/quiche
-export QUICHE_PATH=/home/ale/Documents/quiche
-cargo build --release -p quiche_apps --features quiche/pcr-quic
+cd /home/ale/Documents/pcr-quic/pcr-quiche
+cargo build --release -p quiche_apps --features pcr-quic
 
 # 2. Run benchmark 10 times for statistical significance
 cd /home/ale/Documents/pcr-quic
@@ -533,7 +529,7 @@ EOF
 
 ```bash
 # Remove build artifacts
-cd /home/ale/Documents/pcr-quic/quiche
+cd /home/ale/Documents/pcr-quic/pcr-quiche
 cargo clean
 
 cd /home/ale/Documents/quiche

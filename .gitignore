@@ -3,21 +3,19 @@
 **/*.rs.bk
 Cargo.lock
 
-# PCR-integrated quiche (regenerated from upstream + patch)
-# See pcr-quiche/quiche-pcr-integration.patch for modifications
+# Vanilla quiche (symlink to /home/ale/Documents/quiche)
+# Clone from: https://github.com/cloudflare/quiche.git
 /quiche/
-/pcr-quic-crate/target/
 
-# Benchmark results
-benchmarks/results/*.json
-benchmarks/results/*.csv
-benchmarks/results/*.png
-!benchmarks/results/.gitkeep
+# PCR-integrated quiche (regenerated from patch)
+# Generate with: apply patch from pcr-quiche-patch/
+/pcr-quiche/
+
+/pcr-quic-crate/target/
 
 # Test artifacts
 /tmp/
 *.pem
-*.key
 *.crt
 
 # IDE
@@ -30,5 +28,3 @@ benchmarks/results/*.png
 # OS
 .DS_Store
 Thumbs.db
-*.o
-target/

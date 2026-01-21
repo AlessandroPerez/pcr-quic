@@ -78,16 +78,18 @@ PCR-QUIC enhances QUIC's security by adding per-packet forward secrecy through a
 │   ├── Cargo.toml
 │   └── build.rs             # Compiles C FFI shim
 │
-├── pcr-quiche/              # Integration patches
+├── pcr-quiche-patch/        # Integration patches (pushed to repo)
 │   ├── quiche-pcr-integration.patch  # Modifications to upstream quiche
 │   └── README.md            # Patch usage instructions
 │
-├── quiche/                  # PCR-integrated quiche (generated from patch)
+├── pcr-quiche/              # PCR-integrated quiche (augmented implementation)
 │   ├── quiche/src/lib.rs    # Packet encryption/decryption hooks
 │   ├── apps/src/
 │   │   ├── bin/quiche-server.rs
 │   │   └── client.rs
 │   └── Cargo.toml
+│
+├── quiche/                  # Symlink to vanilla quiche at /home/ale/Documents/quiche
 │
 ├── test.sh                  # Unified test & benchmark script
 ├── README.md                # This file

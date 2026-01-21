@@ -184,8 +184,8 @@ impl PcrPacketKey {
             self.init_info_prefix(dir, cid);
         }
 
-        // TK initialization at pn == 1
-        if pn == 1 && self.tk.is_none() {
+        // TK initialization on first packet
+        if self.tk.is_none() {
             self.ikm_buf[0..32].copy_from_slice(&self.iv_base);
             
             let mut hasher = blake3::Hasher::new();
@@ -265,9 +265,9 @@ impl PcrPacketKey {
             self.init_info_prefix(dir, cid);
         }
 
-        // TK initialization at pn == 1
-        // Spec: TK = HKDF(IV || IV, dir || cid || (u96)e || (u96)pn, 32)
-        if pn == 1 && self.tk.is_none() {
+        // TK initialization on first packet
+        // Spec: TK = BLAKE3(IV || IV, dir || cid || (u96)e || (u96)pn, 32)
+        if self.tk.is_none() {
             // IKM: IV || IV - copy IV to first half (second half already has IV)
             self.ikm_buf[0..32].copy_from_slice(&self.iv_base);
             

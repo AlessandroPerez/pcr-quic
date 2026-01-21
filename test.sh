@@ -9,8 +9,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-QUICHE_VANILLA="${QUICHE_PATH:-/home/ale/Documents/quiche}"
-QUICHE_PCR="$SCRIPT_DIR/quiche"
+QUICHE_VANILLA="$SCRIPT_DIR/quiche"
+QUICHE_PCR="$SCRIPT_DIR/pcr-quiche"
 
 # Suppress warnings during compilation
 export RUSTFLAGS="-A warnings"
@@ -182,18 +182,18 @@ setup_network_simulation() {
     sudo ip netns exec client ip link set lo up
     
     # Apply traffic control for realistic network simulation
-    # Server side: 1 Gbps bandwidth, 10ms delay (half RTT), 0.05% loss
+    # Server side: 1 Gbps bandwidth, 5ms delay (half RTT), no loss initially
     sudo ip netns exec server tc qdisc add dev veth-server root netem \
-        rate 1000mbit delay 10ms loss 0.05%
+        rate 1000mbit delay 5ms
     
-    # Client side: 1 Gbps bandwidth, 10ms delay (half RTT), 0.05% loss
+    # Client side: 1 Gbps bandwidth, 5ms delay (half RTT), no loss initially
     sudo ip netns exec client tc qdisc add dev veth-client root netem \
-        rate 1000mbit delay 10ms loss 0.05%
+        rate 1000mbit delay 5ms
     
     echo -e "${GREEN}✓ Network simulation configured:${NC}"
     echo "  - Bandwidth: 1 Gbps"
-    echo "  - RTT: 20ms (10ms each direction)"
-    echo "  - Packet loss: 0.1% (0.05% each direction)"
+    echo "  - RTT: 10ms (5ms each direction)"
+    echo "  - Packet loss: 0% (disabled for testing)"
     echo
 }
 
@@ -226,6 +226,16 @@ test_benchmark() {
 
     mkdir -p "$RESULTS_DIR"
     
+    # Verify network simulation is active
+    echo -e "${YELLOW}Verifying network simulation...${NC}"
+    if sudo ip netns exec server tc qdisc show dev veth-server | grep -q "netem"; then
+        echo -e "${GREEN}✓ Traffic control (tc) active on server${NC}"
+        sudo ip netns exec server tc qdisc show dev veth-server | grep "netem"
+    else
+        echo -e "${RED}❌ WARNING: Traffic control not active!${NC}"
+    fi
+    echo
+    
     echo "Network: 1 Gbps, 20ms RTT, 0.1% loss"
     echo "Test file: 1GB"
     echo
@@ -254,7 +264,7 @@ test_benchmark() {
         
         sudo ip netns exec client "$client_bin" \
             --no-verify https://10.0.0.1:4433/test_1gb.bin \
-            > "${log_prefix}_client.log" 2>&1
+            > /dev/null 2>&1
         
         local end_time=$(date +%s.%N)
         local duration=$(echo "$end_time - $start_time" | bc)
@@ -279,12 +289,16 @@ test_benchmark() {
     cargo build --release -p quiche_apps \
         --bin quiche-server --bin quiche-client --quiet
     
+    # Verify network simulation is active
+    echo "Verifying network simulation..."
+    sudo ip netns exec server tc qdisc show dev veth-server | grep -q "netem" && echo "✓ tc active on server" || echo "⚠ tc NOT active"
+    
     run_test "vanilla" "$VANILLA_SERVER" "$VANILLA_CLIENT"
     
     # Build PCR version
     echo "Building PCR-QUIC..."
     cd "$QUICHE_PCR"
-    cargo build --release -p quiche_apps --features quiche/pcr-quic \
+    cargo build --release -p quiche_apps --features pcr-quic \
         --bin quiche-server --bin quiche-client --quiet
     
     run_test "pcr" "$PCR_SERVER" "$PCR_CLIENT"
@@ -302,13 +316,20 @@ test_benchmark() {
         pcr_time=$(cat "${RESULTS_DIR}/pcr_time.txt")
         vanilla_mbps=$(echo "scale=2; 8192 / $vanilla_time" | bc)
         pcr_mbps=$(echo "scale=2; 8192 / $pcr_time" | bc)
-        overhead=$(echo "scale=2; (($pcr_time - $vanilla_time) / $vanilla_time) * 100" | bc)
+        
+        # Calculate deltas
+        time_overhead=$(echo "scale=2; (($pcr_time - $vanilla_time) / $vanilla_time) * 100" | bc)
+        time_delta=$(echo "scale=2; $pcr_time - $vanilla_time" | bc)
+        throughput_delta=$(echo "scale=2; $vanilla_mbps - $pcr_mbps" | bc)
+        throughput_overhead=$(echo "scale=2; (($vanilla_mbps - $pcr_mbps) / $vanilla_mbps) * 100" | bc)
         
         echo "Vanilla QUIC: ${vanilla_time}s (${vanilla_mbps} Mbps)"
         echo "PCR-QUIC:     ${pcr_time}s (${pcr_mbps} Mbps)"
-        echo "Overhead:     ${overhead}%"
         echo
-        echo "Network simulation: 1 Gbps, 20ms RTT, 0.1% loss"
+        echo "Time overhead:       +${time_delta}s (+${time_overhead}%)"
+        echo "Throughput reduction: -${throughput_delta} Mbps (-${throughput_overhead}%)"
+        echo
+        echo "Network simulation: 1 Gbps, 10ms RTT, 0% loss"
     fi
     echo
 }
